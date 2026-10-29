@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #ffffff;
+  color: #111827;
+}
+html.dark body {
+  background: #0b0f14;
+  color: #e5e7eb;
+}
+
+@layer components {
+  .bento-card {
+    @apply rounded-2xl border border-gray-200 bg-white shadow-bento dark:border-white/10 dark:bg-white/[0.03];
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-200 dark:hover:bg-white/[0.07];
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50;
+  }
+  .input-field {
+    @apply w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-100 dark:placeholder:text-gray-500;
+  }
+  .label-text {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+}
+
+/* thin scrollbars */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: rgba(120,120,120,0.3); border-radius: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* print styles for reports */
+@media print {
+  aside, header button { display: none !important; }
+  main { padding: 0 !important; }
+  .bento-card { break-inside: avoid; box-shadow: none; border: 1px solid #e5e7eb; }
+  body { background: white !important; color: #111 !important; }
+}
