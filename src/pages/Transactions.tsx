@@ -4,6 +4,7 @@ import { computeTotals } from '@/lib/totals';
 import { currencySymbol, formatMoney, formatDate, formatTime, paymentLabel } from '@/lib/format';
 import TransactionForm from '@/components/transactions/TransactionForm';
 import QuickActionDialog from '@/components/transactions/QuickActionDialog';
+import BankChargesPanel from '@/components/bank/BankChargesPanel';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { QUICK_ACTIONS } from '@/lib/constants';
@@ -35,7 +36,7 @@ export default function Transactions({ onNavigate }: Props) {
   const totals = useMemo(() => (activeBusiness ? computeTotals(activeBusiness, transactions) : null), [activeBusiness, transactions]);
 
   const filtered = useMemo(() => {
-    let list = transactions;
+    let list = transactions.filter((t) => !t.is_bank_charge);
     if (typeFilter !== 'all') list = list.filter((t) => t.type === typeFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -90,6 +91,9 @@ export default function Transactions({ onNavigate }: Props) {
           })}
         </div>
       </div>
+
+      {/* bank charges */}
+      <BankChargesPanel />
 
       {/* filter + list */}
       <div className="bento-card p-4">

@@ -30,6 +30,7 @@ export default function Reports() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
+  const [includeCharges, setIncludeCharges] = useState(true);
   const [drilldown, setDrilldown] = useState<{ open: boolean; txns: Transaction[]; title: string }>({ open: false, txns: [], title: '' });
 
   const { data: combinedTxns, loading } = useBusinessesTransactions(tab === 'combined' ? selected : []);
@@ -59,9 +60,9 @@ export default function Reports() {
   // single business filtered transactions
   const singleTxns = useMemo(() => {
     if (!activeBusiness) return [];
-    if (period === 'custom') return filterByDateRange(transactions, dateRange.from, dateRange.to);
-    return filterByDateRange(transactions, dateRange.from, dateRange.to);
-  }, [activeBusiness, transactions, dateRange, period]);
+    const inRange = filterByDateRange(transactions, dateRange.from, dateRange.to);
+    return includeCharges ? inRange : inRange.filter((t) => !t.is_bank_charge);
+  }, [activeBusiness, transactions, dateRange, includeCharges]);
 
   // summary stats
   const singleStats = useMemo(() => {
@@ -332,6 +333,12 @@ export default function Reports() {
               {p === 'custom' ? 'Custom range' : p}
             </button>
           ))}
+          {tab === 'single' && (
+            <button onClick={() => setIncludeCharges((v) => !v)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${includeCharges ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 dark:bg-white/5 dark:text-gray-300'}`}>
+              {includeCharges ? 'Bank charges included' : 'Bank charges excluded'}
+            </button>
+          )}
         </div>
         {period === 'custom' && (
           <div className="flex flex-wrap items-center gap-2">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBusiness } from '@/contexts/BusinessContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -24,10 +24,12 @@ import {
   Undo2,
   Redo2,
   Save,
+  Clock3,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { currencySymbol } from '@/lib/format';
 import CreateBusinessModal from '@/components/business/CreateBusinessModal';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 export type Route =
   | 'dashboard'
@@ -72,10 +74,40 @@ export default function AppLayout({ route, onNavigate, children }: AppLayoutProp
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [bizMenuOpen, setBizMenuOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [sessionWarning, setSessionWarning] = useState(false);
+  const inactivityTimer = useRef<number | null>(null);
+
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimer.current !== null) window.clearTimeout(inactivityTimer.current);
+    setSessionWarning(false);
+    inactivityTimer.current = window.setTimeout(() => setSessionWarning(true), 25 * 60 * 1000);
+  }, []);
 
   useEffect(() => {
     setSidebarOpen(false);
   }, [route]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    let lastActivity = 0;
+    const handleActivity = () => {
+      const now = Date.now();
+      if (now - lastActivity < 1000) return;
+      lastActivity = now;
+      resetInactivityTimer();
+    };
+
+    activityEvents.forEach((eventName) => window.addEventListener(eventName, handleActivity));
+    resetInactivityTimer();
+
+    return () => {
+      activityEvents.forEach((eventName) => window.removeEventListener(eventName, handleActivity));
+      if (inactivityTimer.current !== null) window.clearTimeout(inactivityTimer.current);
+    };
+  }, [user, resetInactivityTimer]);
 
   const handleSignOut = async () => {
     try {
@@ -157,7 +189,7 @@ export default function AppLayout({ route, onNavigate, children }: AppLayoutProp
 
           <div className="border-t border-gray-200 p-3 dark:border-white/10">
             <button
-              onClick={handleSignOut}
+              onClick={() => setLogoutOpen(true)}
               className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
             >
               <LogOut className="h-[18px] w-[18px]" />
@@ -289,10 +321,32 @@ export default function AppLayout({ route, onNavigate, children }: AppLayoutProp
           </div>
         </header>
 
+        {sessionWarning && (
+          <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-200 sm:px-6">
+            <div className="flex min-w-0 items-center gap-2">
+              <Clock3 className="h-4 w-4 shrink-0" />
+              <span>Your session may expire soon because of inactivity. Interact with the app to stay signed in.</span>
+            </div>
+            <button onClick={resetInactivityTimer} className="shrink-0 rounded-lg px-2.5 py-1.5 font-semibold text-amber-800 transition hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-amber-500/20">
+              Stay signed in
+            </button>
+          </div>
+        )}
+
         <main className="p-4 sm:p-6">{children}</main>
       </div>
 
       <CreateBusinessModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <ConfirmDialog
+        open={logoutOpen}
+        title="Sign out?"
+        message="You can choose Go back if you clicked Logout by mistake."
+        confirmLabel="Sign out"
+        cancelLabel="Go back"
+        danger
+        onConfirm={handleSignOut}
+        onClose={() => setLogoutOpen(false)}
+      />
     </div>
   );
 }

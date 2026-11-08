@@ -1,5 +1,17 @@
-import type { Business, Transaction } from './types';
+import type { BankAccount, Business, Transaction } from './types';
 import { endOfDay, startOfDay, startOfMonth, startOfWeek, roundMoney } from './format';
+
+/** Tracked balance per bank account: opening balance minus all bank charges recorded against it. */
+export function bankAccountBalances(accounts: BankAccount[], txns: Transaction[]): Map<string, number> {
+  const charged = new Map<string, number>();
+  for (const t of txns) {
+    if (!t.is_bank_charge || !t.bank_account_id) continue;
+    charged.set(t.bank_account_id, (charged.get(t.bank_account_id) ?? 0) + Number(t.amount));
+  }
+  return new Map(
+    accounts.map((a) => [a.id, roundMoney(Number(a.opening_balance) - (charged.get(a.id) ?? 0))])
+  );
+}
 
 export interface TotalsResult {
   openingBalance: number;

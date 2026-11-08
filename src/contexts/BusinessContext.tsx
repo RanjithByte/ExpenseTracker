@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 import { DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from '@/lib/constants';
 import { roundMoney } from '@/lib/format';
-import type { Business, Category, QuickAction, Transaction } from '@/lib/types';
+import type { BankAccount, Business, Category, QuickAction, Transaction } from '@/lib/types';
 
 type ActionType = 'add' | 'edit' | 'delete';
 
@@ -24,6 +24,7 @@ interface BusinessContextValue {
   activeBusiness: Business | null;
   categories: Category[];
   quickActions: QuickAction[];
+  bankAccounts: BankAccount[];
   transactions: Transaction[];
   loading: boolean;
   canUndo: boolean;
@@ -33,6 +34,7 @@ interface BusinessContextValue {
   refreshBusinesses: () => Promise<void>;
   refreshCategories: () => Promise<void>;
   refreshQuickActions: () => Promise<void>;
+  refreshBankAccounts: () => Promise<void>;
   refreshTransactions: () => Promise<void>;
   createBusiness: (input: {
     name: string;
@@ -43,9 +45,12 @@ interface BusinessContextValue {
   updateBusiness: (id: string, patch: Partial<Pick<Business, 'name' | 'description' | 'currency'>>) => Promise<void>;
   deleteBusiness: (id: string) => Promise<void>;
   addCategory: (businessId: string, name: string, type: 'income' | 'expense') => Promise<Category>;
+  updateCategory: (id: string, name: string) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
   addQuickAction: (businessId: string, label: string, category: string) => Promise<QuickAction>;
   updateQuickAction: (id: string, label: string, category: string) => Promise<void>;
   deleteQuickAction: (id: string) => Promise<void>;
+  addBankAccount: (businessId: string, name: string, openingBalance: number) => Promise<BankAccount>;
   addTransaction: (input: Omit<Transaction, 'id' | 'created_at'>) => Promise<void>;
   updateTransaction: (id: string, patch: Partial<Omit<Transaction, 'id' | 'created_at' | 'business_id'>>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
@@ -57,12 +62,18 @@ const BusinessContext = createContext<BusinessContextValue | undefined>(undefine
 
 const ACTIVE_KEY = 'finance-active-business';
 
+function mapCategoryError(error: { code?: string; message: string }): Error {
+  if (error.code === '23505') return new Error('A category with this name already exists');
+  return new Error(error.message);
+}
+
 export function BusinessProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [activeBusinessId, setActiveBusinessIdState] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [quickActions, setQuickActions] = useState<QuickAction[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -172,6 +183,20 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     setQuickActions((data as QuickAction[]) ?? []);
   }, [activeBusinessId]);
 
+  const refreshBankAccounts = useCallback(async () => {
+    if (!activeBusinessId) {
+      setBankAccounts([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('bank_accounts')
+      .select('*')
+      .eq('business_id', activeBusinessId)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    setBankAccounts((data as BankAccount[]) ?? []);
+  }, [activeBusinessId]);
+
   const refreshTransactions = useCallback(async () => {
     if (!activeBusinessId) {
       setTransactions([]);
@@ -189,17 +214,18 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setCategories([]);
     setQuickActions([]);
+    setBankAccounts([]);
     setTransactions([]);
     updateUndoRedoState(activeBusinessId);
     if (!activeBusinessId) return;
     (async () => {
       try {
-        await Promise.all([refreshCategories(), refreshQuickActions(), refreshTransactions()]);
+        await Promise.all([refreshCategories(), refreshQuickActions(), refreshBankAccounts(), refreshTransactions()]);
       } catch {
         // swallow; surfaced via UI checks
       }
     })();
-  }, [activeBusinessId, refreshCategories, refreshQuickActions, refreshTransactions, updateUndoRedoState]);
+  }, [activeBusinessId, refreshCategories, refreshQuickActions, refreshBankAccounts, refreshTransactions, updateUndoRedoState]);
 
   const ensureDefaultCategories = async (businessId: string) => {
     const existing = await supabase.from('categories').select('name,type').eq('business_id', businessId);
@@ -256,9 +282,32 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       .insert({ business_id: businessId, name, type })
       .select()
       .single();
-    if (error) throw error;
+    if (error) throw mapCategoryError(error);
     await refreshCategories();
     return data as Category;
+  };
+
+  const updateCategory: BusinessContextValue['updateCategory'] = async (id, name) => {
+    const current = categories.find((c) => c.id === id);
+    if (!current) throw new Error('Category not found');
+    const clean = name.trim();
+    const { error } = await supabase.from('categories').update({ name: clean }).eq('id', id);
+    if (error) throw mapCategoryError(error);
+    const txnResult = await supabase.from('transactions').update({ category_name: clean }).eq('category_id', id);
+    if (txnResult.error) throw txnResult.error;
+    const quickResult = await supabase
+      .from('quick_actions')
+      .update({ category: clean })
+      .eq('business_id', current.business_id)
+      .eq('category', current.name);
+    if (quickResult.error) throw quickResult.error;
+    await Promise.all([refreshCategories(), refreshTransactions(), refreshQuickActions()]);
+  };
+
+  const deleteCategory: BusinessContextValue['deleteCategory'] = async (id) => {
+    const { error } = await supabase.from('categories').delete().eq('id', id);
+    if (error) throw error;
+    await Promise.all([refreshCategories(), refreshTransactions()]);
   };
 
   const addQuickAction: BusinessContextValue['addQuickAction'] = async (businessId, label, category) => {
@@ -285,6 +334,21 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.from('quick_actions').delete().eq('id', id);
     if (error) throw error;
     await refreshQuickActions();
+  };
+
+  const addBankAccount: BusinessContextValue['addBankAccount'] = async (businessId, name, openingBalance) => {
+    const { data, error } = await supabase
+      .from('bank_accounts')
+      .insert({ business_id: businessId, name: name.trim(), opening_balance: roundMoney(openingBalance) })
+      .select()
+      .single();
+    if (error) {
+      throw error.code === '23505'
+        ? new Error('A bank account with this name already exists')
+        : new Error(error.message);
+    }
+    await refreshBankAccounts();
+    return data as BankAccount;
   };
 
   const addTransaction: BusinessContextValue['addTransaction'] = async (input) => {
@@ -397,6 +461,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     activeBusiness,
     categories,
     quickActions,
+    bankAccounts,
     transactions,
     loading,
     canUndo,
@@ -406,14 +471,18 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     refreshBusinesses,
     refreshCategories,
     refreshQuickActions,
+    refreshBankAccounts,
     refreshTransactions,
     createBusiness,
     updateBusiness,
     deleteBusiness,
     addCategory,
+    updateCategory,
+    deleteCategory,
     addQuickAction,
     updateQuickAction,
     deleteQuickAction,
+    addBankAccount,
     addTransaction,
     updateTransaction,
     deleteTransaction,

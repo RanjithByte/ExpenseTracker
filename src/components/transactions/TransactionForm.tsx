@@ -4,7 +4,8 @@ import { useBusiness } from '@/contexts/BusinessContext';
 import { useToast } from '@/components/ui/Toast';
 import type { PaymentMethod, Transaction, TxnType } from '@/lib/types';
 import { currencySymbol, paymentLabel, toLocalInput, fromLocalInput } from '@/lib/format';
-import { ArrowDownCircle, ArrowUpCircle, Plus, Trash2 } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, Settings, Trash2 } from 'lucide-react';
+import CategoryManagerModal from '@/components/transactions/CategoryManagerModal';
 
 interface Props {
   open: boolean;
@@ -19,7 +20,7 @@ interface Props {
 const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'upi', 'card', 'bank', 'atm'];
 
 export default function TransactionForm({ open, onClose, editing, presetType, presetCategory, presetAmount, presetDate }: Props) {
-  const { activeBusiness, categories, addCategory, addTransaction, updateTransaction, deleteTransaction } = useBusiness();
+  const { activeBusiness, categories, addTransaction, updateTransaction, deleteTransaction } = useBusiness();
   const toast = useToast();
 
   const [type, setType] = useState<TxnType>('expense');
@@ -32,8 +33,7 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
   const [notes, setNotes] = useState('');
   const [reference, setReference] = useState('');
   const [txnDate, setTxnDate] = useState(toLocalInput(new Date()));
-  const [newCategory, setNewCategory] = useState('');
-  const [showNewCat, setShowNewCat] = useState(false);
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,8 +54,6 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
     setNotes('');
     setReference('');
     setTxnDate(toLocalInput(new Date()));
-    setNewCategory('');
-    setShowNewCat(false);
     setError(null);
   };
 
@@ -93,19 +91,6 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
     setCategoryId(id);
   };
 
-  const handleAddCategory = async () => {
-    if (!activeBusiness || !newCategory.trim()) return;
-    try {
-      const cat = await addCategory(activeBusiness.id, newCategory.trim(), type);
-      handleCategorySelect(cat.name, cat.id);
-      setNewCategory('');
-      setShowNewCat(false);
-      toast.show('Category added', 'success');
-    } catch (err) {
-      toast.show(err instanceof Error ? err.message : 'Failed to add category', 'error');
-    }
-  };
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeBusiness) return;
@@ -121,10 +106,11 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
     setBusy(true);
     setError(null);
     try {
+      const selected = categories.find((c) => c.id === categoryId) ?? null;
       const payload = {
         business_id: activeBusiness.id,
-        category_id: categoryId,
-        category_name: categoryName || null,
+        category_id: selected?.id ?? null,
+        category_name: selected?.name ?? (categoryName || null),
         type,
         amount: amt,
         item: item.trim(),
@@ -133,6 +119,9 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
         notes: notes.trim() || null,
         reference: reference.trim() || null,
         txn_date: fromLocalInput(txnDate),
+        is_bank_charge: false,
+        bank_account_id: null,
+        deduction_type: null,
       };
       if (editing) {
         await updateTransaction(editing.id, payload);
@@ -166,6 +155,7 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
   };
 
   return (
+    <>
     <Modal
       open={open}
       onClose={() => { reset(); onClose(); }}
@@ -254,24 +244,12 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
             ))}
             <button
               type="button"
-              onClick={() => setShowNewCat((s) => !s)}
+              onClick={() => setShowCategoryManager(true)}
               className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-200 dark:bg-white/5 dark:text-gray-300"
             >
-              <Plus className="h-3 w-3" /> Custom
+              <Settings className="h-3 w-3" /> Modify
             </button>
           </div>
-          {showNewCat && (
-            <div className="mt-2 flex gap-2">
-              <input
-                className="input-field flex-1"
-                placeholder="New category name"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategory(); } }}
-              />
-              <button type="button" className="btn-ghost" onClick={handleAddCategory}>Add</button>
-            </div>
-          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -309,5 +287,7 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
         )}
       </form>
     </Modal>
+    <CategoryManagerModal open={showCategoryManager} onClose={() => setShowCategoryManager(false)} type={type} />
+    </>
   );
 }

@@ -16,6 +16,7 @@ interface AuthContextValue extends AuthState {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updatePassword: (newPassword: string) => Promise<void>;
+  deleteAccount: (email: string, password: string) => Promise<void>;
   updateProfile: (displayName: string) => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -99,6 +100,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   };
 
+  const deleteAccount: AuthContextValue['deleteAccount'] = async (enteredEmail, password) => {
+    const currentEmail = state.email?.trim().toLowerCase();
+    const normalizedEmail = enteredEmail.trim().toLowerCase();
+    if (!currentEmail || normalizedEmail !== currentEmail) {
+      throw new Error('Enter the email address currently signed in.');
+    }
+
+    const { error: reauthError } = await supabase.auth.signInWithPassword({
+      email: currentEmail,
+      password,
+    });
+    if (reauthError) throw new Error('The email or password is incorrect.');
+
+    const { error: deleteError } = await supabase.rpc('delete_current_account');
+    if (deleteError) throw new Error('Could not delete the account. Please try again.');
+
+    await supabase.auth.signOut();
+  };
+
   const updateProfile: AuthContextValue['updateProfile'] = async (displayName) => {
     const { error } = await supabase.auth.updateUser({ data: { display_name: displayName } });
     if (error) throw error;
@@ -112,6 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     resetPassword,
     updatePassword,
+    deleteAccount,
     updateProfile,
     refresh,
   };

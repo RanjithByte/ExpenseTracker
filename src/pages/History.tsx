@@ -306,7 +306,7 @@ export default function History() {
       </div>
 
       {/* calendar */}
-      <div className="bento-card p-4">
+      <div className="bento-card mx-auto w-full max-w-xs p-4">
         <TransactionCalendar transactions={transactions} selectedDate={selectedDate} onDateClick={(d) => setSelectedDate((cur) => cur && dateKeyEq(cur, d) ? null : d)} />
       </div>
 

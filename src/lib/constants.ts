@@ -41,6 +41,19 @@ export const QUICK_ACTIONS = [
 
 export const CURRENCIES = ['INR', 'USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'AED', 'SGD'];
 
+export const BANK_CHARGE_CATEGORY = 'Bank charges';
+
+export const DEFAULT_DEDUCTION_TYPES = [
+  'SMS charges',
+  'Debit card annual fee',
+  'Credit card charges',
+  'ATM charges',
+  'Minimum balance penalty',
+  'Account maintenance fee',
+  'GST',
+  'Other bank charges',
+];
+
 export function isDefaultCategory(name: string, type: TxnType): boolean {
   const set = type === 'income' ? DEFAULT_INCOME_CATEGORIES : DEFAULT_EXPENSE_CATEGORIES;
   return set.includes(name);

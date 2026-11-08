@@ -3,11 +3,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { useBusiness } from '@/contexts/BusinessContext';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { Lock, KeyRound, LogOut, AlertTriangle, Mail, Eye, EyeOff } from 'lucide-react';
+import Modal from '@/components/ui/Modal';
+import { Lock, KeyRound, LogOut, AlertTriangle, Mail, Eye, EyeOff, Trash2 } from 'lucide-react';
 
 export default function Account() {
-  const { email, updatePassword, signOut } = useAuth();
-  const { signOut: bizSignOut } = useAuth();
+  const { email, updatePassword, deleteAccount, signOut } = useAuth();
   const toast = useToast();
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -15,6 +15,11 @@ export default function Account() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [logoutOpen, setLogoutOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteEmail, setDeleteEmail] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const changePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,6 +40,22 @@ export default function Account() {
 
   const handleSignOut = async () => {
     try { await signOut(); } catch { toast.show('Failed to sign out', 'error'); }
+  };
+
+  const handleDeleteAccount = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setDeleteError(null);
+    if (!deleteEmail.trim() || !deletePassword) {
+      setDeleteError('Enter your email and password to continue.');
+      return;
+    }
+    setDeleteBusy(true);
+    try {
+      await deleteAccount(deleteEmail, deletePassword);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Could not delete the account.');
+      setDeleteBusy(false);
+    }
   };
 
   return (
@@ -99,10 +120,55 @@ export default function Account() {
           <AlertTriangle className="h-4 w-4" /> Danger zone
         </h3>
         <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">Sign out of your account on this device. Your data stays safely stored.</p>
-        <button onClick={() => setLogoutOpen(true)} className="btn-danger">
-          <LogOut className="h-4 w-4" /> Sign out
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setLogoutOpen(true)} className="btn-danger">
+            <LogOut className="h-4 w-4" /> Sign out
+          </button>
+          <button
+            onClick={() => { setDeleteOpen(true); setDeleteError(null); setDeleteEmail(''); setDeletePassword(''); }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-500/10"
+          >
+            <Trash2 className="h-4 w-4" /> Delete account
+          </button>
+        </div>
       </div>
+
+      <Modal open={deleteOpen} onClose={() => { if (!deleteBusy) setDeleteOpen(false); }} title="Delete account" size="sm">
+        <form onSubmit={handleDeleteAccount} className="space-y-4">
+          <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-500/10 dark:text-red-300">
+            This permanently deletes your account, businesses, and transactions. This cannot be undone.
+          </div>
+          <div>
+            <label className="label-text">Enter your account email</label>
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              className="input-field"
+              value={deleteEmail}
+              onChange={(event) => setDeleteEmail(event.target.value)}
+              placeholder={email ?? 'you@example.com'}
+            />
+          </div>
+          <div>
+            <label className="label-text">Enter your password</label>
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              className="input-field"
+              value={deletePassword}
+              onChange={(event) => setDeletePassword(event.target.value)}
+              placeholder="••••••••"
+            />
+          </div>
+          {deleteError && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-500/10 dark:text-red-400">{deleteError}</div>}
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" className="btn-ghost" onClick={() => setDeleteOpen(false)} disabled={deleteBusy}>Cancel</button>
+            <button type="submit" className="btn-danger" disabled={deleteBusy}>{deleteBusy ? 'Deleting…' : 'Permanently delete'}</button>
+          </div>
+        </form>
+      </Modal>
 
       <ConfirmDialog
         open={logoutOpen}

@@ -61,6 +61,9 @@ export default function QuickActionDialog({ open, onClose, category, label }: Pr
         notes: null,
         reference: null,
         txn_date: fromLocalInput(txnDate),
+        is_bank_charge: false,
+        bank_account_id: null,
+        deduction_type: null,
       });
       toast.show(`${label} expense added`, 'success');
       onClose();

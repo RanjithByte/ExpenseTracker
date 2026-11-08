@@ -54,7 +54,7 @@ export default function AuthScreen() {
             </div>
             <div className="text-center">
               <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
-                My Finance
+                SpendWise
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Track income & expenses across your businesses

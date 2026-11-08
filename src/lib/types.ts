@@ -19,6 +19,14 @@ export interface Category {
   created_at: string;
 }
 
+export interface BankAccount {
+  id: string;
+  business_id: string;
+  name: string;
+  opening_balance: number;
+  created_at: string;
+}
+
 export interface QuickAction {
   id: string;
   business_id: string;
@@ -41,6 +49,9 @@ export interface Transaction {
   reference: string | null;
   txn_date: string;
   created_at: string;
+  is_bank_charge: boolean;
+  bank_account_id: string | null;
+  deduction_type: string | null;
 }
 
 export interface TransactionInput {
@@ -55,6 +66,9 @@ export interface TransactionInput {
   notes: string | null;
   reference: string | null;
   txn_date: string;
+  is_bank_charge: boolean;
+  bank_account_id: string | null;
+  deduction_type: string | null;
 }
 
 export interface BusinessTotals {
