@@ -20,10 +20,11 @@ pipeline {
                 sh 'npm run build'
             }
         }
+
         stage('Deploy to Apache') {
             steps {
                 sh '''
-                    cp -r dist/. /var/www/html/MyExpenseApp/
+                    rsync -av --delete dist/ /var/www/html/MyExpenseApp/
                 '''
             }
         }
