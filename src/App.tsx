@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { BusinessProvider, useBusiness } from '@/contexts/BusinessContext';
@@ -29,6 +29,25 @@ function AppShell() {
   const { user, loading } = useAuth();
   const { businesses, loading: bizLoading } = useBusiness();
   const [route, setRoute] = useState<Route>('dashboard');
+  const routeRef = useRef<Route>('dashboard');
+
+  useEffect(() => {
+    window.history.replaceState({ route: 'dashboard' }, '');
+    const handlePop = (event: PopStateEvent) => {
+      const next = (event.state?.route as Route | undefined) ?? 'dashboard';
+      routeRef.current = next;
+      setRoute(next);
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, []);
+
+  const navigate = useCallback((next: Route) => {
+    if (next === routeRef.current) return;
+    window.history.pushState({ route: next }, '');
+    routeRef.current = next;
+    setRoute(next);
+  }, []);
 
   if (loading) {
     return (
@@ -46,24 +65,24 @@ function AppShell() {
   // No businesses yet → onboarding
   if (!bizLoading && businesses.length === 0 && route !== 'businesses') {
     return (
-      <AppLayout route="businesses" onNavigate={setRoute}>
+      <AppLayout route="businesses" onNavigate={navigate}>
         <Onboarding />
       </AppLayout>
     );
   }
 
   return (
-    <AppLayout route={route} onNavigate={setRoute}>
-      {route === 'dashboard' && <Dashboard onNavigate={setRoute} />}
-      {route === 'transactions' && <Transactions onNavigate={setRoute} />}
+    <AppLayout route={route} onNavigate={navigate}>
+      {route === 'dashboard' && <Dashboard onNavigate={navigate} />}
+      {route === 'transactions' && <Transactions onNavigate={navigate} />}
       {route === 'history' && <History />}
-      {route === 'calendar' && <CalendarPage onNavigate={setRoute} />}
+      {route === 'calendar' && <CalendarPage onNavigate={navigate} />}
       {route === 'reports' && (
         <Suspense fallback={<PageLoader />}>
           <Reports />
         </Suspense>
       )}
-      {route === 'rankings' && <Rankings onNavigate={setRoute} />}
+      {route === 'rankings' && <Rankings onNavigate={navigate} />}
       {route === 'businesses' && <Businesses />}
       {route === 'profile' && <Profile />}
       {route === 'account' && <Account />}

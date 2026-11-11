@@ -1,16 +1,41 @@
-import type { BankAccount, Business, Transaction } from './types';
+import type { BankAccount, BankTransfer, Business, Transaction } from './types';
 import { endOfDay, startOfDay, startOfMonth, startOfWeek, roundMoney } from './format';
 
-/** Tracked balance per bank account: opening balance minus all bank charges recorded against it. */
-export function bankAccountBalances(accounts: BankAccount[], txns: Transaction[]): Map<string, number> {
-  const charged = new Map<string, number>();
+/** Each bank account's balance: opening balance, plus ledger income, minus ledger expenses, plus transfers in, minus transfers out. */
+export function bankAccountBalances(
+  accounts: BankAccount[],
+  txns: Transaction[],
+  transfers: BankTransfer[]
+): Map<string, number> {
+  const net = new Map<string, number>();
+  const add = (id: string, delta: number) => net.set(id, (net.get(id) ?? 0) + delta);
   for (const t of txns) {
-    if (!t.is_bank_charge || !t.bank_account_id) continue;
-    charged.set(t.bank_account_id, (charged.get(t.bank_account_id) ?? 0) + Number(t.amount));
+    if (!t.bank_account_id) continue;
+    const amount = Number(t.amount);
+    add(t.bank_account_id, t.type === 'income' ? amount : -amount);
   }
-  return new Map(
-    accounts.map((a) => [a.id, roundMoney(Number(a.opening_balance) - (charged.get(a.id) ?? 0))])
-  );
+  for (const tr of transfers) {
+    const amount = Number(tr.amount);
+    add(tr.from_account_id, -amount);
+    add(tr.to_account_id, amount);
+  }
+  return new Map(accounts.map((a) => [a.id, roundMoney(Number(a.opening_balance) + (net.get(a.id) ?? 0))]));
+}
+
+/** Cash in hand: business opening balance plus every transaction not tied to a bank account. */
+export function cashInHandBalance(business: Business, txns: Transaction[]): number {
+  let balance = Number(business.opening_balance) || 0;
+  for (const t of txns) {
+    if (t.bank_account_id) continue;
+    balance += t.type === 'income' ? Number(t.amount) : -Number(t.amount);
+  }
+  return roundMoney(balance);
+}
+
+export function totalInBanks(accounts: BankAccount[], txns: Transaction[], transfers: BankTransfer[]): number {
+  let sum = 0;
+  for (const value of bankAccountBalances(accounts, txns, transfers).values()) sum += value;
+  return roundMoney(sum);
 }
 
 export interface TotalsResult {
@@ -25,7 +50,12 @@ export interface TotalsResult {
   count: number;
 }
 
-export function computeTotals(business: Business, txns: Transaction[]): TotalsResult {
+export function computeTotals(
+  business: Business,
+  txns: Transaction[],
+  accounts: BankAccount[],
+  transfers: BankTransfer[]
+): TotalsResult {
   const now = new Date();
   const sod = startOfDay(now).getTime();
   const sow = startOfWeek(now).getTime();
@@ -52,7 +82,7 @@ export function computeTotals(business: Business, txns: Transaction[]): TotalsRe
     openingBalance,
     totalIncome: roundMoney(totalIncome),
     totalExpense: roundMoney(totalExpense),
-    currentBalance: roundMoney(openingBalance + totalIncome - totalExpense),
+    currentBalance: roundMoney(cashInHandBalance(business, txns) + totalInBanks(accounts, txns, transfers)),
     todayIncome: roundMoney(todayIncome),
     todayExpense: roundMoney(todayExpense),
     weekExpense: roundMoney(weekExpense),

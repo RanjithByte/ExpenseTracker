@@ -9,16 +9,24 @@ interface Props {
   selectedDate?: Date | null;
 }
 
+interface DayCounts {
+  income: number;
+  expense: number;
+}
+
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export default function TransactionCalendar({ transactions, onDateClick, selectedDate }: Props) {
   const [cursor, setCursor] = useState(() => new Date());
 
-  const counts = useMemo(() => {
-    const map = new Map<string, number>();
+  const countsByDay = useMemo(() => {
+    const map = new Map<string, DayCounts>();
     for (const t of transactions) {
       const k = dateKey(new Date(t.txn_date));
-      map.set(k, (map.get(k) ?? 0) + 1);
+      const entry = map.get(k) ?? { income: 0, expense: 0 };
+      if (t.type === 'income') entry.income += 1;
+      else entry.expense += 1;
+      map.set(k, entry);
     }
     return map;
   }, [transactions]);
@@ -42,68 +50,73 @@ export default function TransactionCalendar({ transactions, onDateClick, selecte
   return (
     <div className="w-full">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{monthLabel}</h3>
+        <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">{monthLabel}</h3>
         <div className="flex gap-1">
           <button
             onClick={() => setCursor(new Date(year, month - 1, 1))}
-            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10"
+            className="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 dark:hover:bg-white/10"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
           <button
             onClick={() => setCursor(new Date())}
-            className="rounded-lg px-2 py-1.5 text-xs font-semibold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+            className="rounded-lg px-2 py-1.5 text-xs font-semibold text-emerald-600 transition hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
           >
             Today
           </button>
           <button
             onClick={() => setCursor(new Date(year, month + 1, 1))}
-            className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10"
+            className="rounded-lg p-1.5 text-gray-500 transition hover:bg-gray-100 dark:hover:bg-white/10"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1.5">
         {WEEKDAYS.map((d, i) => (
-          <div key={i} className="text-center text-[10px] font-semibold uppercase text-gray-400">{d}</div>
+          <div key={i} className="pb-1 text-center text-[11px] font-semibold uppercase text-gray-400">{d}</div>
         ))}
         {cells.map((d, i) => {
           if (!d) return <div key={i} />;
           const k = dateKey(d);
-          const count = counts.get(k) ?? 0;
+          const counts = countsByDay.get(k);
           const isToday = k === todayKey;
           const isSelected = k === selectedKey;
           return (
             <button
               key={i}
               onClick={() => onDateClick?.(d)}
-              className={`relative flex aspect-square flex-col items-center justify-center rounded-lg text-xs transition ${
+              className={`flex min-h-[64px] flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-sm transition sm:min-h-[76px] ${
                 isSelected
                   ? 'bg-emerald-600 text-white'
                   : isToday
                   ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400'
                   : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5'
               }`}
-              title={count > 0 ? `${count} transaction(s) on ${formatDate(d.toISOString())}` : formatDate(d.toISOString())}
+              title={formatDate(d.toISOString())}
             >
-              <span className="font-medium">{d.getDate()}</span>
-              {count > 0 && (
-                <span
-                  className={`absolute bottom-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold ${
-                    isSelected ? 'bg-white/30 text-white' : 'bg-emerald-500 text-white'
-                  }`}
-                >
-                  {count}
+              <span className="font-semibold">{d.getDate()}</span>
+              {counts && (
+                <span className="flex items-center justify-center gap-1.5 leading-tight">
+                  {counts.income > 0 && (
+                    <span className={`text-[11px] font-bold ${isSelected ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {counts.income}
+                    </span>
+                  )}
+                  {counts.expense > 0 && (
+                    <span className={`text-[11px] font-bold ${isSelected ? 'text-white' : 'text-rose-600 dark:text-rose-400'}`}>
+                      {counts.expense}
+                    </span>
+                  )}
                 </span>
               )}
             </button>
           );
         })}
       </div>
-      <p className="mt-3 text-xs text-gray-400">
-        Numbers show transactions per day. Click a date to filter.
+      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+        Green numbers are income, red are expenses. Click a date to filter.
       </p>
     </div>
   );

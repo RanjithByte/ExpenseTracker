@@ -17,10 +17,40 @@ interface Props {
   presetDate?: string | null;
 }
 
-const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'upi', 'card', 'bank', 'atm'];
+const PAYMENT_METHODS: PaymentMethod[] = ['cash', 'upi', 'card', 'bank', 'other'];
+const BANK_PAYMENT_METHODS: PaymentMethod[] = ['upi', 'card', 'bank'];
+const PAYMENT_PREFS_KEY = 'finance.lastPaymentPrefs';
+
+interface PaymentPrefs {
+  paymentMethod: PaymentMethod;
+  bankAccountId: string | null;
+}
+
+function loadPaymentPrefs(): PaymentPrefs {
+  const fallback: PaymentPrefs = { paymentMethod: 'cash', bankAccountId: null };
+  try {
+    const raw = window.localStorage.getItem(PAYMENT_PREFS_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as Partial<PaymentPrefs>;
+    const method = PAYMENT_METHODS.includes(parsed.paymentMethod as PaymentMethod)
+      ? (parsed.paymentMethod as PaymentMethod)
+      : 'cash';
+    return { paymentMethod: method, bankAccountId: typeof parsed.bankAccountId === 'string' ? parsed.bankAccountId : null };
+  } catch {
+    return fallback;
+  }
+}
+
+function savePaymentPrefs(prefs: PaymentPrefs) {
+  try {
+    window.localStorage.setItem(PAYMENT_PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    /* storage unavailable: selections simply won't persist */
+  }
+}
 
 export default function TransactionForm({ open, onClose, editing, presetType, presetCategory, presetAmount, presetDate }: Props) {
-  const { activeBusiness, categories, addTransaction, updateTransaction, deleteTransaction } = useBusiness();
+  const { activeBusiness, categories, bankAccounts, addTransaction, updateTransaction, deleteTransaction } = useBusiness();
   const toast = useToast();
 
   const [type, setType] = useState<TxnType>('expense');
@@ -29,7 +59,9 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
   const [categoryName, setCategoryName] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(() => loadPaymentPrefs().paymentMethod);
+  const [bankAccountId, setBankAccountId] = useState<string | null>(() => loadPaymentPrefs().bankAccountId);
+  const [hasTime, setHasTime] = useState(true);
   const [notes, setNotes] = useState('');
   const [reference, setReference] = useState('');
   const [txnDate, setTxnDate] = useState(toLocalInput(new Date()));
@@ -43,6 +75,10 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
     [categories, type]
   );
 
+  const isBankPayment = BANK_PAYMENT_METHODS.includes(paymentMethod);
+  const selectedAccountId = bankAccounts.some((a) => a.id === bankAccountId) ? bankAccountId : (bankAccounts[0]?.id ?? null);
+  const paymentOptions = PAYMENT_METHODS.includes(paymentMethod) ? PAYMENT_METHODS : [...PAYMENT_METHODS, paymentMethod];
+
   const reset = () => {
     setType('expense');
     setItem('');
@@ -50,7 +86,10 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
     setCategoryName('');
     setCategoryId(null);
     setAmount('');
-    setPaymentMethod('cash');
+    const prefs = loadPaymentPrefs();
+    setPaymentMethod(prefs.paymentMethod);
+    setBankAccountId(prefs.bankAccountId);
+    setHasTime(true);
     setNotes('');
     setReference('');
     setTxnDate(toLocalInput(new Date()));
@@ -68,9 +107,11 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
       setCategoryId(editing.category_id);
       setAmount(String(editing.amount));
       setPaymentMethod(editing.payment_method);
+      setBankAccountId(editing.bank_account_id);
       setNotes(editing.notes ?? '');
       setReference(editing.reference ?? '');
-      setTxnDate(toLocalInput(new Date(editing.txn_date)));
+      setHasTime(editing.has_time);
+      setTxnDate(editing.has_time ? toLocalInput(new Date(editing.txn_date)) : toLocalInput(new Date(editing.txn_date)).slice(0, 10));
     } else {
       reset();
       setType(presetType ?? 'expense');
@@ -80,11 +121,29 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
         setCategoryId(match?.id ?? null);
       }
       if (presetAmount) setAmount(String(presetAmount));
-      if (presetDate) setTxnDate(presetDate);
+      if (presetDate) {
+        setTxnDate(presetDate);
+        setHasTime(presetDate.includes('T'));
+      }
       if (!presetCategory && !presetDate) setTxnDate(toLocalInput(new Date()));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing, presetType, presetCategory, presetAmount, presetDate]);
+
+  const handlePaymentChange = (method: PaymentMethod) => {
+    setPaymentMethod(method);
+    savePaymentPrefs({ paymentMethod: method, bankAccountId: selectedAccountId });
+  };
+
+  const handleAccountChange = (id: string) => {
+    setBankAccountId(id);
+    savePaymentPrefs({ paymentMethod, bankAccountId: id });
+  };
+
+  const toggleHasTime = (on: boolean) => {
+    setHasTime(on);
+    setTxnDate((prev) => (on ? `${prev.slice(0, 10)}T${toLocalInput(new Date()).slice(11)}` : prev.slice(0, 10)));
+  };
 
   const handleCategorySelect = (name: string, id: string | null) => {
     setCategoryName(name);
@@ -103,6 +162,10 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
       setError('Item name is required');
       return;
     }
+    if (isBankPayment && !selectedAccountId) {
+      setError('Choose the bank account this payment came from');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -116,11 +179,12 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
         item: item.trim(),
         description: description.trim() || null,
         payment_method: paymentMethod,
+        bank_account_id: isBankPayment ? selectedAccountId : null,
         notes: notes.trim() || null,
         reference: reference.trim() || null,
-        txn_date: fromLocalInput(txnDate),
+        txn_date: fromLocalInput(hasTime ? txnDate : `${txnDate.slice(0, 10)}T00:00`),
+        has_time: hasTime,
         is_bank_charge: false,
-        bank_account_id: null,
         deduction_type: null,
       };
       if (editing) {
@@ -208,8 +272,26 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label-text">Date & time *</label>
-            <input type="datetime-local" className="input-field" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} required />
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="label-text">{hasTime ? 'Date & time *' : 'Date *'}</label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={hasTime}
+                onClick={() => toggleHasTime(!hasTime)}
+                className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300"
+              >
+                Add time
+                <span className={`relative inline-flex h-5 w-9 items-center rounded-full transition ${hasTime ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-white/15'}`}>
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${hasTime ? 'translate-x-[18px]' : 'translate-x-0.5'}`} />
+                </span>
+              </button>
+            </div>
+            {hasTime ? (
+              <input type="datetime-local" className="input-field" value={txnDate} onChange={(e) => setTxnDate(e.target.value)} required />
+            ) : (
+              <input type="date" className="input-field" value={txnDate.slice(0, 10)} onChange={(e) => setTxnDate(e.target.value)} required />
+            )}
           </div>
           <div>
             <label className="label-text">Amount *</label>
@@ -259,9 +341,9 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
               className="input-field bg-white text-gray-900 dark:bg-[#11161d] dark:text-gray-100"
               style={{ colorScheme: document.documentElement.classList.contains('dark') ? 'dark' : 'light' }}
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+              onChange={(e) => handlePaymentChange(e.target.value as PaymentMethod)}
             >
-              {PAYMENT_METHODS.map((p) => (
+              {paymentOptions.map((p) => (
                 <option key={p} value={p} className="bg-white text-gray-900 dark:bg-[#11161d] dark:text-gray-100">{paymentLabel(p)}</option>
               ))}
             </select>
@@ -271,6 +353,28 @@ export default function TransactionForm({ open, onClose, editing, presetType, pr
             <input className="input-field" placeholder="e.g. TXN-001" value={reference} onChange={(e) => setReference(e.target.value)} />
           </div>
         </div>
+
+        {isBankPayment && (
+          <div>
+            <label className="label-text">Bank account *</label>
+            {bankAccounts.length === 0 ? (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                No bank accounts yet. Add one in the bank accounts panel on the Transactions page.
+              </p>
+            ) : (
+              <select
+                className="input-field bg-white text-gray-900 dark:bg-[#11161d] dark:text-gray-100"
+                style={{ colorScheme: document.documentElement.classList.contains('dark') ? 'dark' : 'light' }}
+                value={selectedAccountId ?? ''}
+                onChange={(e) => handleAccountChange(e.target.value)}
+              >
+                {bankAccounts.map((a) => (
+                  <option key={a.id} value={a.id} className="bg-white text-gray-900 dark:bg-[#11161d] dark:text-gray-100">{a.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="label-text">Description (optional)</label>

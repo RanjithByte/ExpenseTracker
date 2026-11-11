@@ -1,17 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '@/components/ui/Modal';
 import { useBusiness } from '@/contexts/BusinessContext';
 import { useToast } from '@/components/ui/Toast';
 import { currencySymbol } from '@/lib/format';
+import type { BankAccount } from '@/lib/types';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   businessId: string;
+  editing?: BankAccount | null;
 }
 
-export default function BankAccountModal({ open, onClose, businessId }: Props) {
-  const { activeBusiness, addBankAccount } = useBusiness();
+export default function BankAccountModal({ open, onClose, businessId, editing }: Props) {
+  const { activeBusiness, addBankAccount, updateBankAccount } = useBusiness();
   const toast = useToast();
   const [name, setName] = useState('');
   const [openingBalance, setOpeningBalance] = useState('');
@@ -20,14 +22,15 @@ export default function BankAccountModal({ open, onClose, businessId }: Props) {
 
   const currency = activeBusiness?.currency ?? 'INR';
 
-  const reset = () => {
-    setName('');
-    setOpeningBalance('');
+  useEffect(() => {
+    if (!open) return;
+    setName(editing?.name ?? '');
+    setOpeningBalance(editing ? String(editing.opening_balance) : '');
     setError(null);
-  };
+  }, [open, editing]);
 
   const handleClose = () => {
-    reset();
+    setError(null);
     onClose();
   };
 
@@ -45,12 +48,16 @@ export default function BankAccountModal({ open, onClose, businessId }: Props) {
     setBusy(true);
     setError(null);
     try {
-      await addBankAccount(businessId, name.trim(), balance);
-      toast.show('Bank account added', 'success');
-      reset();
+      if (editing) {
+        await updateBankAccount(editing.id, name.trim(), balance);
+        toast.show('Bank account updated', 'success');
+      } else {
+        await addBankAccount(businessId, name.trim(), balance);
+        toast.show('Bank account added', 'success');
+      }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add bank account');
+      setError(err instanceof Error ? err.message : 'Failed to save bank account');
     } finally {
       setBusy(false);
     }
@@ -60,13 +67,13 @@ export default function BankAccountModal({ open, onClose, businessId }: Props) {
     <Modal
       open={open}
       onClose={handleClose}
-      title="Add bank account"
+      title={editing ? 'Edit bank account' : 'Add bank account'}
       size="sm"
       footer={
         <div className="flex w-full justify-end gap-2">
           <button type="button" className="btn-ghost" onClick={handleClose} disabled={busy}>Cancel</button>
           <button form="bank-account-form" type="submit" className="btn-primary" disabled={busy}>
-            {busy ? 'Saving…' : 'Add account'}
+            {busy ? 'Saving…' : editing ? 'Save changes' : 'Add account'}
           </button>
         </div>
       }
@@ -97,6 +104,7 @@ export default function BankAccountModal({ open, onClose, businessId }: Props) {
               onChange={(e) => setOpeningBalance(e.target.value)}
             />
           </div>
+          <p className="mt-1.5 text-xs text-gray-400">The starting balance before any recorded transactions.</p>
         </div>
         {error && (
           <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-500/10 dark:text-red-400">{error}</div>

@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from './AuthContext';
 import { DEFAULT_EXPENSE_CATEGORIES, DEFAULT_INCOME_CATEGORIES } from '@/lib/constants';
 import { roundMoney } from '@/lib/format';
-import type { BankAccount, Business, Category, QuickAction, Transaction } from '@/lib/types';
+import type { BankAccount, BankTransfer, BankTransferInput, Business, Category, QuickAction, Transaction } from '@/lib/types';
 
 type ActionType = 'add' | 'edit' | 'delete';
 
@@ -25,6 +25,7 @@ interface BusinessContextValue {
   categories: Category[];
   quickActions: QuickAction[];
   bankAccounts: BankAccount[];
+  bankTransfers: BankTransfer[];
   transactions: Transaction[];
   loading: boolean;
   canUndo: boolean;
@@ -35,6 +36,7 @@ interface BusinessContextValue {
   refreshCategories: () => Promise<void>;
   refreshQuickActions: () => Promise<void>;
   refreshBankAccounts: () => Promise<void>;
+  refreshBankTransfers: () => Promise<void>;
   refreshTransactions: () => Promise<void>;
   createBusiness: (input: {
     name: string;
@@ -51,6 +53,11 @@ interface BusinessContextValue {
   updateQuickAction: (id: string, label: string, category: string) => Promise<void>;
   deleteQuickAction: (id: string) => Promise<void>;
   addBankAccount: (businessId: string, name: string, openingBalance: number) => Promise<BankAccount>;
+  updateBankAccount: (id: string, name: string, openingBalance: number) => Promise<void>;
+  deleteBankAccount: (id: string, targetAccountId: string | null) => Promise<void>;
+  addBankTransfer: (input: BankTransferInput) => Promise<void>;
+  updateBankTransfer: (id: string, input: BankTransferInput) => Promise<void>;
+  deleteBankTransfer: (id: string) => Promise<void>;
   addTransaction: (input: Omit<Transaction, 'id' | 'created_at'>) => Promise<void>;
   updateTransaction: (id: string, patch: Partial<Omit<Transaction, 'id' | 'created_at' | 'business_id'>>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
@@ -74,6 +81,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [quickActions, setQuickActions] = useState<QuickAction[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [bankTransfers, setBankTransfers] = useState<BankTransfer[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -197,6 +205,20 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     setBankAccounts((data as BankAccount[]) ?? []);
   }, [activeBusinessId]);
 
+  const refreshBankTransfers = useCallback(async () => {
+    if (!activeBusinessId) {
+      setBankTransfers([]);
+      return;
+    }
+    const { data, error } = await supabase
+      .from('bank_transfers')
+      .select('*')
+      .eq('business_id', activeBusinessId)
+      .order('txn_date', { ascending: false });
+    if (error) throw error;
+    setBankTransfers((data as BankTransfer[]) ?? []);
+  }, [activeBusinessId]);
+
   const refreshTransactions = useCallback(async () => {
     if (!activeBusinessId) {
       setTransactions([]);
@@ -215,12 +237,13 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     setCategories([]);
     setQuickActions([]);
     setBankAccounts([]);
+    setBankTransfers([]);
     setTransactions([]);
     updateUndoRedoState(activeBusinessId);
     if (!activeBusinessId) return;
     (async () => {
       try {
-        await Promise.all([refreshCategories(), refreshQuickActions(), refreshBankAccounts(), refreshTransactions()]);
+        await Promise.all([refreshCategories(), refreshQuickActions(), refreshBankAccounts(), refreshBankTransfers(), refreshTransactions()]);
       } catch {
         // swallow; surfaced via UI checks
       }
@@ -351,6 +374,46 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     return data as BankAccount;
   };
 
+  const updateBankAccount: BusinessContextValue['updateBankAccount'] = async (id, name, openingBalance) => {
+    const { error } = await supabase
+      .from('bank_accounts')
+      .update({ name: name.trim(), opening_balance: roundMoney(openingBalance) })
+      .eq('id', id);
+    if (error) {
+      throw error.code === '23505'
+        ? new Error('A bank account with this name already exists')
+        : new Error(error.message);
+    }
+    await refreshBankAccounts();
+  };
+
+  const deleteBankAccount: BusinessContextValue['deleteBankAccount'] = async (id, targetAccountId) => {
+    const { error } = await supabase.rpc('delete_bank_account', {
+      p_account_id: id,
+      p_target_account_id: targetAccountId,
+    });
+    if (error) throw new Error(error.message);
+    await Promise.all([refreshBankAccounts(), refreshBankTransfers(), refreshTransactions(), refreshBusinesses()]);
+  };
+
+  const addBankTransfer: BusinessContextValue['addBankTransfer'] = async (input) => {
+    const { error } = await supabase.from('bank_transfers').insert(input);
+    if (error) throw new Error(error.message);
+    await refreshBankTransfers();
+  };
+
+  const updateBankTransfer: BusinessContextValue['updateBankTransfer'] = async (id, input) => {
+    const { error } = await supabase.from('bank_transfers').update(input).eq('id', id);
+    if (error) throw new Error(error.message);
+    await refreshBankTransfers();
+  };
+
+  const deleteBankTransfer: BusinessContextValue['deleteBankTransfer'] = async (id) => {
+    const { error } = await supabase.from('bank_transfers').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    await refreshBankTransfers();
+  };
+
   const addTransaction: BusinessContextValue['addTransaction'] = async (input) => {
     const { data, error } = await supabase
       .from('transactions')
@@ -462,6 +525,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     categories,
     quickActions,
     bankAccounts,
+    bankTransfers,
     transactions,
     loading,
     canUndo,
@@ -472,6 +536,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     refreshCategories,
     refreshQuickActions,
     refreshBankAccounts,
+    refreshBankTransfers,
     refreshTransactions,
     createBusiness,
     updateBusiness,
@@ -483,6 +548,11 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
     updateQuickAction,
     deleteQuickAction,
     addBankAccount,
+    updateBankAccount,
+    deleteBankAccount,
+    addBankTransfer,
+    updateBankTransfer,
+    deleteBankTransfer,
     addTransaction,
     updateTransaction,
     deleteTransaction,

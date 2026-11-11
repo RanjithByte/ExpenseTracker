@@ -307,7 +307,7 @@ export default function CalendarPage({ onNavigate }: Props) {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-100">{t.item}</p>
-                        <p className="truncate text-xs text-gray-400">{t.category_name ?? '—'} · {formatTime(t.txn_date)} · {paymentLabel(t.payment_method)}</p>
+                        <p className="truncate text-xs text-gray-400">{t.category_name ?? '—'}{t.has_time ? ` · ${formatTime(t.txn_date)}` : ''} · {paymentLabel(t.payment_method)}</p>
                       </div>
                       <span className={`text-sm font-semibold ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                         {t.type === 'income' ? '+' : '-'}{formatMoney(Number(t.amount), cur)}
@@ -374,7 +374,7 @@ function DayView({ date, txns, cur, onAdd }: { date: Date; txns: Transaction[]; 
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-gray-800 dark:text-gray-100">{t.item}</p>
-                <p className="truncate text-xs text-gray-400">{t.category_name ?? '—'} · {formatTime(t.txn_date)} · {paymentLabel(t.payment_method)}</p>
+                <p className="truncate text-xs text-gray-400">{t.category_name ?? '—'}{t.has_time ? ` · ${formatTime(t.txn_date)}` : ''} · {paymentLabel(t.payment_method)}</p>
               </div>
               <span className={`text-sm font-semibold ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                 {t.type === 'income' ? '+' : '-'}{formatMoney(Number(t.amount), cur)}

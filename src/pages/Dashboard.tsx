@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useBusiness } from '@/contexts/BusinessContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { computeTotals } from '@/lib/totals';
-import { currencySymbol, formatMoney, formatMoneyShort, monthKey, monthLabel, dateKey } from '@/lib/format';
+import { bankAccountBalances, cashInHandBalance, computeTotals, totalInBanks } from '@/lib/totals';
+import { currencySymbol, formatMoney, formatMoneyShort, monthKey, monthLabel, dateKey, roundMoney } from '@/lib/format';
 import { QUICK_ACTIONS } from '@/lib/constants';
 import { GroupedBarChart, DonutChart, LineChart } from '@/components/ui/Charts';
 import TransactionCalendar from '@/components/ui/TransactionCalendar';
@@ -14,7 +14,7 @@ import { useToast } from '@/components/ui/Toast';
 import type { Route } from '@/components/layout/AppLayout';
 import type { QuickAction } from '@/lib/types';
 import {
-  ArrowDownCircle, ArrowUpCircle, Wallet, TrendingUp, TrendingDown,
+  ArrowDownCircle, ArrowUpCircle, Wallet, TrendingUp, TrendingDown, Landmark,
   CalendarDays, Receipt, BarChart3, History, Plus, Pencil, Trash2, Fuel, UtensilsCrossed,
   Cookie, ShoppingBag, Plane, Zap, ShoppingCart, Building2,
 } from 'lucide-react';
@@ -30,7 +30,7 @@ const QUICK_ICONS: Record<string, typeof Fuel> = {
 const DONUT_COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1'];
 
 export default function Dashboard({ onNavigate }: Props) {
-  const { activeBusiness, transactions, quickActions, loading, deleteQuickAction } = useBusiness();
+  const { activeBusiness, transactions, bankAccounts, bankTransfers, quickActions, loading, deleteQuickAction } = useBusiness();
   const toast = useToast();
   const { displayName } = useAuth();
   const [txForm, setTxForm] = useState<{ open: boolean; type: 'income' | 'expense' | null }>({ open: false, type: null });
@@ -52,9 +52,14 @@ export default function Dashboard({ onNavigate }: Props) {
   };
 
   const totals = useMemo(
-    () => (activeBusiness ? computeTotals(activeBusiness, transactions) : null),
-    [activeBusiness, transactions]
+    () => (activeBusiness ? computeTotals(activeBusiness, transactions, bankAccounts, bankTransfers) : null),
+    [activeBusiness, transactions, bankAccounts, bankTransfers]
   );
+
+  const cashInHand = useMemo(() => (activeBusiness ? cashInHandBalance(activeBusiness, transactions) : 0), [activeBusiness, transactions]);
+  const accountBalances = useMemo(() => bankAccountBalances(bankAccounts, transactions, bankTransfers), [bankAccounts, transactions, bankTransfers]);
+  const bankTotal = useMemo(() => totalInBanks(bankAccounts, transactions, bankTransfers), [bankAccounts, transactions, bankTransfers]);
+  const totalBalance = roundMoney(cashInHand + bankTotal);
 
   // monthly bars (last 6 months)
   const monthly = useMemo(() => {
@@ -160,9 +165,9 @@ export default function Dashboard({ onNavigate }: Props) {
       {/* bento grid */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatCard
-          title="Current Balance"
-          value={formatMoney(totals?.currentBalance ?? 0, cur)}
-          subtitle={`Opening ${formatMoney(totals?.openingBalance ?? 0, cur)}`}
+          title="Total Balance"
+          value={formatMoney(totalBalance, cur)}
+          subtitle="Cash in hand plus all bank accounts"
           icon={<Wallet className="h-5 w-5" />}
           accent="emerald"
           span="lg:col-span-2"
@@ -179,6 +184,48 @@ export default function Dashboard({ onNavigate }: Props) {
           icon={<TrendingDown className="h-5 w-5" />}
           accent="expense"
         />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+        <StatCard title="Cash in Hand" value={formatMoney(cashInHand, cur)} subtitle="Cash payments and cash opening balance" icon={<Wallet className="h-5 w-5" />} accent="neutral" />
+        <StatCard title="Total in Banks" value={formatMoney(bankTotal, cur)} subtitle={`Across ${bankAccounts.length} ${bankAccounts.length === 1 ? 'account' : 'accounts'}`} icon={<Landmark className="h-5 w-5" />} accent="neutral" />
+      </div>
+
+      <div className="bento-card p-4 sm:p-5">
+        <h3 className="mb-3 text-sm font-semibold text-gray-800 dark:text-gray-100">Account breakdown</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <th className="pb-2 font-semibold">Account</th>
+                <th className="pb-2 text-right font-semibold">Balance</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-white/5">
+              <tr>
+                <td className="py-2.5 font-medium text-gray-700 dark:text-gray-200">Cash in Hand</td>
+                <td className="py-2.5 text-right font-semibold text-gray-900 dark:text-white">{formatMoney(cashInHand, cur)}</td>
+              </tr>
+              {bankAccounts.map((a) => (
+                <tr key={a.id}>
+                  <td className="py-2.5 font-medium text-gray-700 dark:text-gray-200">{a.name}</td>
+                  <td className="py-2.5 text-right font-semibold text-gray-900 dark:text-white">{formatMoney(accountBalances.get(a.id) ?? 0, cur)}</td>
+                </tr>
+              ))}
+              {bankAccounts.length === 0 && (
+                <tr>
+                  <td colSpan={2} className="py-3 text-center text-gray-400">No bank accounts yet. Add one from the Transactions page.</td>
+                </tr>
+              )}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200 dark:border-white/10">
+                <td className="pt-2.5 font-bold text-gray-900 dark:text-white">Total Balance</td>
+                <td className="pt-2.5 text-right font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(totalBalance, cur)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

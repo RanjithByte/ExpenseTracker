@@ -1,5 +1,5 @@
 export type TxnType = 'income' | 'expense';
-export type PaymentMethod = 'cash' | 'upi' | 'card' | 'bank' | 'atm';
+export type PaymentMethod = 'cash' | 'upi' | 'card' | 'bank' | 'atm' | 'other';
 
 export interface Business {
   id: string;
@@ -52,6 +52,7 @@ export interface Transaction {
   is_bank_charge: boolean;
   bank_account_id: string | null;
   deduction_type: string | null;
+  has_time: boolean;
 }
 
 export interface TransactionInput {
@@ -69,6 +70,29 @@ export interface TransactionInput {
   is_bank_charge: boolean;
   bank_account_id: string | null;
   deduction_type: string | null;
+  has_time: boolean;
+}
+
+export interface BankTransfer {
+  id: string;
+  business_id: string;
+  from_account_id: string;
+  to_account_id: string;
+  amount: number;
+  note: string | null;
+  txn_date: string;
+  has_time: boolean;
+  created_at: string;
+}
+
+export interface BankTransferInput {
+  business_id: string;
+  from_account_id: string;
+  to_account_id: string;
+  amount: number;
+  note: string | null;
+  txn_date: string;
+  has_time: boolean;
 }
 
 export interface BusinessTotals {

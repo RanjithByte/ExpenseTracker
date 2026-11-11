@@ -72,9 +72,10 @@ export function fromLocalInput(value: string): string {
 export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Cash',
   upi: 'UPI',
-  card: 'Card',
+  card: 'Debit Card',
   bank: 'Bank Transfer',
   atm: 'ATM',
+  other: 'Other',
 };
 
 export function paymentLabel(p: PaymentMethod): string {

@@ -4,6 +4,7 @@ import { computeTotals } from '@/lib/totals';
 import { currencySymbol, formatMoney, formatDate, formatTime, paymentLabel } from '@/lib/format';
 import TransactionForm from '@/components/transactions/TransactionForm';
 import QuickActionDialog from '@/components/transactions/QuickActionDialog';
+import BankTransfersPanel from '@/components/bank/BankTransfersPanel';
 import BankChargesPanel from '@/components/bank/BankChargesPanel';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
@@ -22,7 +23,7 @@ const QUICK_ICONS: Record<string, typeof Fuel> = {
 interface Props { onNavigate: (r: Route) => void; }
 
 export default function Transactions({ onNavigate }: Props) {
-  const { activeBusiness, transactions, deleteTransaction } = useBusiness();
+  const { activeBusiness, transactions, bankAccounts, bankTransfers, deleteTransaction } = useBusiness();
   const toast = useToast();
   const [formOpen, setFormOpen] = useState(false);
   const [presetType, setPresetType] = useState<TxnType | null>(null);
@@ -33,7 +34,10 @@ export default function Transactions({ onNavigate }: Props) {
   const [search, setSearch] = useState('');
 
   const cur = activeBusiness?.currency ?? 'INR';
-  const totals = useMemo(() => (activeBusiness ? computeTotals(activeBusiness, transactions) : null), [activeBusiness, transactions]);
+  const totals = useMemo(
+    () => (activeBusiness ? computeTotals(activeBusiness, transactions, bankAccounts, bankTransfers) : null),
+    [activeBusiness, transactions, bankAccounts, bankTransfers]
+  );
 
   const filtered = useMemo(() => {
     let list = transactions.filter((t) => !t.is_bank_charge);
@@ -94,6 +98,7 @@ export default function Transactions({ onNavigate }: Props) {
 
       {/* bank charges */}
       <BankChargesPanel />
+      <BankTransfersPanel />
 
       {/* filter + list */}
       <div className="bento-card p-4">
@@ -121,7 +126,7 @@ export default function Transactions({ onNavigate }: Props) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium text-gray-800 dark:text-gray-100">{t.item}</p>
                   <p className="truncate text-xs text-gray-400">
-                    {t.category_name ?? '—'} · {paymentLabel(t.payment_method)} · {formatDate(t.txn_date)} {formatTime(t.txn_date)}
+                    {t.category_name ?? '—'} · {paymentLabel(t.payment_method)} · {formatDate(t.txn_date)}{t.has_time ? ` ${formatTime(t.txn_date)}` : ''}
                   </p>
                 </div>
                 <span className={`text-sm font-semibold ${t.type === 'income' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>

@@ -61,6 +61,7 @@ export default function QuickActionDialog({ open, onClose, category, label }: Pr
         notes: null,
         reference: null,
         txn_date: fromLocalInput(txnDate),
+        has_time: true,
         is_bank_charge: false,
         bank_account_id: null,
         deduction_type: null,

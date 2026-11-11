@@ -86,6 +86,7 @@ export default function BankChargeForm({ open, onClose, editing }: Props) {
       notes: null,
       reference: null,
       txn_date: fromLocalInput(txnDate),
+      has_time: true,
       is_bank_charge: true,
       bank_account_id: accountId,
       deduction_type: type,

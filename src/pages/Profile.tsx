@@ -8,7 +8,7 @@ import { User as UserIcon, Mail, Calendar, Building2, Wallet, Save } from 'lucid
 
 export default function Profile() {
   const { user, displayName, email, updateProfile } = useAuth();
-  const { businesses, transactions, activeBusiness } = useBusiness();
+  const { businesses, transactions, bankAccounts, bankTransfers, activeBusiness } = useBusiness();
   const toast = useToast();
   const [name, setName] = useState(displayName ?? '');
   const [busy, setBusy] = useState(false);
@@ -82,7 +82,7 @@ export default function Profile() {
 
   function ActiveSummary() {
     if (!activeBusiness) return null;
-    const t = computeTotals(activeBusiness, transactions);
+    const t = computeTotals(activeBusiness, transactions, bankAccounts, bankTransfers);
     return (
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <MiniStat label="Opening" value={formatMoney(t.openingBalance, activeBusiness.currency)} />

@@ -128,7 +128,7 @@ export default function History() {
   const exportCSV = () => {
     const headers = ['Date', 'Time', 'Item', 'Description', 'Category', 'Type', 'Income', 'Expense', 'Payment Method', 'Balance After', 'Notes', 'Reference'];
     const rowsCsv = rows.map((t) => [
-      formatDate(t.txn_date), formatTime(t.txn_date), t.item, t.description ?? '', t.category_name ?? '',
+      formatDate(t.txn_date), t.has_time ? formatTime(t.txn_date) : '', t.item, t.description ?? '', t.category_name ?? '',
       t.type, t.type === 'income' ? String(t.amount) : '', t.type === 'expense' ? String(t.amount) : '',
       paymentLabel(t.payment_method), String(t.balanceAfter), t.notes ?? '', t.reference ?? '',
     ]);
@@ -306,7 +306,7 @@ export default function History() {
       </div>
 
       {/* calendar */}
-      <div className="bento-card mx-auto w-full max-w-xs p-4">
+      <div className="bento-card mx-auto w-full max-w-md p-4 sm:p-5">
         <TransactionCalendar transactions={transactions} selectedDate={selectedDate} onDateClick={(d) => setSelectedDate((cur) => cur && dateKeyEq(cur, d) ? null : d)} />
       </div>
 
@@ -343,7 +343,7 @@ export default function History() {
                 <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.02]">
                   <td className="whitespace-nowrap px-3 py-2.5">
                     <div className="font-medium text-gray-800 dark:text-gray-100">{formatDate(t.txn_date)}</div>
-                    <div className="text-xs text-gray-400">{formatTime(t.txn_date)}</div>
+                    {t.has_time && <div className="text-xs text-gray-400">{formatTime(t.txn_date)}</div>}
                   </td>
                   <td className="px-3 py-2.5 font-medium text-gray-800 dark:text-gray-100">{t.item}</td>
                   <td className="max-w-[180px] truncate px-3 py-2.5 text-gray-500">{t.description ?? '—'}</td>

@@ -85,10 +85,6 @@ export default function AppLayout({ route, onNavigate, children }: AppLayoutProp
   }, []);
 
   useEffect(() => {
-    setSidebarOpen(false);
-  }, [route]);
-
-  useEffect(() => {
     if (!user) return;
 
     const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
@@ -148,7 +144,7 @@ export default function AppLayout({ route, onNavigate, children }: AppLayoutProp
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-64 transform border-r border-gray-200 bg-white transition-transform dark:border-white/10 dark:bg-[#0e141b] ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0`}
+        } duration-300`}
       >
         <div className="flex h-full flex-col">
           <div className="flex h-16 items-center justify-between border-b border-gray-200 px-5 dark:border-white/10">
@@ -159,8 +155,8 @@ export default function AppLayout({ route, onNavigate, children }: AppLayoutProp
               <span className="text-lg font-bold tracking-tight text-gray-900 dark:text-white">My Finance</span>
             </div>
             <button
-              onClick={() => setSidebarOpen(false)}
-              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 lg:hidden dark:hover:bg-white/10"
+              onClick={() => setSidebarOpen((open) => !open)}
+              className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10"
             >
               <X className="h-5 w-5" />
             </button>
@@ -207,12 +203,14 @@ export default function AppLayout({ route, onNavigate, children }: AppLayoutProp
       )}
 
       {/* Main */}
-      <div className="lg:pl-64">
+      <div className={`transition-[padding] duration-300 ${sidebarOpen ? 'lg:pl-64' : ''}`}>
         {/* Topbar */}
         <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-gray-200 bg-white/80 px-4 backdrop-blur dark:border-white/10 dark:bg-[#0e141b]/80 sm:px-6">
           <button
-            onClick={() => setSidebarOpen(true)}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 lg:hidden dark:hover:bg-white/10"
+            onClick={() => setSidebarOpen((open) => !open)}
+            className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
+            aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={sidebarOpen}
           >
             <Menu className="h-5 w-5" />
           </button>

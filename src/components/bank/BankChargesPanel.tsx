@@ -7,18 +7,21 @@ import BankAccountModal from '@/components/bank/BankAccountModal';
 import BankChargeForm from '@/components/bank/BankChargeForm';
 import { bankAccountBalances } from '@/lib/totals';
 import { formatDate, formatMoney, formatTime } from '@/lib/format';
-import type { Transaction } from '@/lib/types';
+import type { BankAccount, Transaction } from '@/lib/types';
+import DeleteBankAccountDialog from '@/components/bank/DeleteBankAccountDialog';
 
 export default function BankChargesPanel() {
-  const { activeBusiness, bankAccounts, transactions, deleteTransaction } = useBusiness();
+  const { activeBusiness, bankAccounts, bankTransfers, transactions, deleteTransaction } = useBusiness();
   const toast = useToast();
   const [accountOpen, setAccountOpen] = useState(false);
   const [chargeOpen, setChargeOpen] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
+  const [deletingAccount, setDeletingAccount] = useState<BankAccount | null>(null);
 
   const cur = activeBusiness?.currency ?? 'INR';
-  const balances = useMemo(() => bankAccountBalances(bankAccounts, transactions), [bankAccounts, transactions]);
+  const balances = useMemo(() => bankAccountBalances(bankAccounts, transactions, bankTransfers), [bankAccounts, transactions, bankTransfers]);
   const accountNames = useMemo(() => new Map(bankAccounts.map((a) => [a.id, a.name])), [bankAccounts]);
   const charges = useMemo(() => transactions.filter((t) => t.is_bank_charge), [transactions]);
 
@@ -46,7 +49,7 @@ export default function BankChargesPanel() {
           <p className="text-xs text-gray-400">Automatic deductions reduce the account balance and count as expenses.</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => setAccountOpen(true)} className="btn-ghost">
+          <button onClick={() => { setEditingAccount(null); setAccountOpen(true); }} className="btn-ghost">
             <Plus className="h-4 w-4" /> Add account
           </button>
           <button
@@ -66,7 +69,13 @@ export default function BankChargesPanel() {
           <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {bankAccounts.map((a) => (
               <div key={a.id} className="rounded-xl border border-gray-200 bg-white p-3 dark:border-white/10 dark:bg-white/[0.03]">
-                <p className="truncate text-xs font-medium text-gray-500 dark:text-gray-400">{a.name}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate text-xs font-medium text-gray-500 dark:text-gray-400">{a.name}</p>
+                  <div className="flex shrink-0 gap-0.5">
+                    <button onClick={() => { setEditingAccount(a); setAccountOpen(true); }} aria-label={`Edit ${a.name}`} className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-emerald-600 dark:hover:bg-white/10"><Pencil className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => setDeletingAccount(a)} aria-label={`Delete ${a.name}`} className="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-red-600 dark:hover:bg-white/10"><Trash2 className="h-3.5 w-3.5" /></button>
+                  </div>
+                </div>
                 <p className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{formatMoney(balances.get(a.id) ?? 0, cur)}</p>
                 <p className="text-[11px] text-gray-400">Tracked balance</p>
               </div>
@@ -85,7 +94,7 @@ export default function BankChargesPanel() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-gray-800 dark:text-gray-100">{t.deduction_type ?? t.item}</p>
                     <p className="truncate text-xs text-gray-400">
-                      {t.bank_account_id ? accountNames.get(t.bank_account_id) ?? 'Unknown account' : '—'} · {formatDate(t.txn_date)} {formatTime(t.txn_date)}
+                      {t.bank_account_id ? accountNames.get(t.bank_account_id) ?? 'Unknown account' : '—'} · {formatDate(t.txn_date)}{t.has_time ? ` ${formatTime(t.txn_date)}` : ''}
                       {t.description ? ` · ${t.description}` : ''}
                     </p>
                   </div>
@@ -101,7 +110,20 @@ export default function BankChargesPanel() {
         </>
       )}
 
-      <BankAccountModal open={accountOpen} onClose={() => setAccountOpen(false)} businessId={activeBusiness.id} />
+      <BankAccountModal
+        open={accountOpen}
+        onClose={() => { setAccountOpen(false); setEditingAccount(null); }}
+        businessId={activeBusiness.id}
+        editing={editingAccount}
+      />
+      {deletingAccount && (
+        <DeleteBankAccountDialog
+          account={deletingAccount}
+          balance={balances.get(deletingAccount.id) ?? 0}
+          currency={cur}
+          onClose={() => setDeletingAccount(null)}
+        />
+      )}
       <BankChargeForm open={chargeOpen} onClose={() => { setChargeOpen(false); setEditing(null); }} editing={editing} />
       <ConfirmDialog
         open={!!deleteId}
