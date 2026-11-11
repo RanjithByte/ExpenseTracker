@@ -21,12 +21,16 @@ pipeline {
             }
         }
 
-        stage('Deploy to Apache') {
-            steps {
-                sh '''
-                    rsync -av --delete dist/ /var/www/html/MyExpenseApp/
-                '''
-            }
-        }
+        
+stage('Deploy to Apache') {
+    steps {
+        sh '''
+            rsync -av --no-owner --no-group \
+            --chmod=Du=rwx,Dg=rwx,Fu=rw,Fg=rw \
+            --delete dist/ /var/www/html/MyExpenseApp/
+        '''
+    }
+}
+
     }
 }
