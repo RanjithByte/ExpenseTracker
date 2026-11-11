@@ -20,17 +20,16 @@ pipeline {
                 sh 'npm run build'
             }
         }
-
         
-stage('Deploy to Apache') {
-    steps {
-        sh '''
-            rsync -av --no-owner --no-group \
-            --chmod=Du=rwx,Dg=rwx,Fu=rw,Fg=rw \
-            --delete dist/ /var/www/html/MyExpenseApp/
-        '''
-    }
-}
-
+        stage('Deploy to Apache') {
+            steps {
+                sh '''
+                rsync -rltv --no-perms --no-owner --no-group \
+                --omit-dir-times \
+                --chmod=Du=rwx,Dg=rwx,Fu=rw,Fg=rw \
+                --delete dist/ /var/www/html/MyExpenseApp/
+                '''
+            }
+        }
     }
 }
